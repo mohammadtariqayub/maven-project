@@ -3,7 +3,16 @@ pipeline {
     tools {
         maven 'localMaven'
     }
-   stages{
+    parameters {
+         string(name: 'tomcat_dev', defaultValue: 'localhost', description: 'Staging Server')
+         string(name: 'tomcat_prod', defaultValue: 'localhost', description: 'Production Server')
+    }
+
+    triggers {
+         pollSCM('* * * * *')
+     }
+
+stages{
         stage('Build'){
             steps {
                 sh 'mvn clean package'
@@ -11,35 +20,25 @@ pipeline {
             post {
                 success {
                     echo 'Now Archiving...'
-                    archiveArtifacts artifacts: '**/*.war'
-                }
-            }
-        }
-        stage ('Deploy to Staging'){
-            steps {
-                build job: 'Deploy-to-staging'
-            }
-        }
-
-        stage ('Deploy to Production'){
-            steps{
-                timeout(time:5, unit:'DAYS'){
-                    input message:'Approve PRODUCTION Deployment?'
-                }
-
-                build job: 'Deploy-to-Prod'
-            }
-            post {
-                success {
-                    echo 'Code deployed to Production.'
-                }
-
-                failure {
-                    echo ' Deployment failed.'
+                    archiveArtifacts artifacts: '**/target/*.war'
                 }
             }
         }
 
+        stage ('Deployments'){
+            parallel{
+                stage ('Deploy to Staging'){
+                    steps {
+                        sh "cp **/target/*.war /var/lib/tomcat7/webapps"
+                    }
+                }
 
+                stage ("Deploy to Production"){
+                    steps {
+                        sh "cp **/target/*.war /var/lib/tomcat7/webapps"
+                    }
+                }
+            }
+        }
     }
-}
+  }
